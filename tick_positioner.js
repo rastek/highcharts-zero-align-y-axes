@@ -130,18 +130,76 @@
     );
   }
 
-  Highcharts.Chart.prototype.callbacks.push(function(chart) {
-    var tickPositioner = new TickPositioner().init();
-    var multiple = (chart.axes.length > 2 ? true : false);
-    tickPositioner.zero_align = true;
-    for (var i in chart.axes) {
-      if (chart.axes[i].coll === "yAxis") {
-        chart.axes[i].update({
-          tickPositioner: (tickPositioner.positioner(multiple))
-        }, false);
-      }
-    }
-    chart.redraw();
-    chart.axes[0].update();
-  });
+ 
+    var tickPosition = function (chart) {
+        if (chart.yAxis.length < 2) {
+            return;
+        }
+        var tickPositioner = new TickPositioner().init();
+        var multiple = (chart.axes.length > 2);
+        tickPositioner.zero_align = true;
+        var tickPositioner2 = (tickPositioner.positioner(multiple));
+        for (var i in chart.axes) {
+            if (chart.axes[i].coll === "yAxis") {
+                chart.axes[i].update({
+                    tickPositioner: tickPositioner2
+                }, false);
+            }
+        }
+
+    };
+
+
+    /*  Highcharts.Chart.prototype.callbacks.push(function(chart){tickPosition(chart);
+     chart.redraw();
+     /!*  for (var i in chart.axes) {
+     chart.axes[i].update();
+     }*!/
+     });*/
+
+    Highcharts.wrap(Highcharts.Chart.prototype, 'init', function (proceed, userOptions, callback) {
+        var chart = this;
+        proceed.call(chart, userOptions, function (_chart) {
+            if (!!callback) {
+                callback(_chart);
+            }
+            tickPosition(_chart);
+            _chart.redraw();
+        });
+    });
+
+    Highcharts.wrap(Highcharts.Chart.prototype, 'zoom', function (proceed, event) {
+        var chart = this;
+        var data = proceed.call(chart, event);
+        tickPosition(chart);
+        return data;
+    });
+
+    Highcharts.wrap(Highcharts.Scroller.prototype, 'getUnionExtremes', function (proceed, returnFalseOnNoBaseSeries) {
+        var scroller = this;
+        var data = proceed.call(scroller, returnFalseOnNoBaseSeries);
+        if (scroller.zoomedMin !== scroller.zoomedMinOld || scroller.zoomedMax !== scroller.zoomedMaxOld) {
+            tickPosition(scroller.chart);
+            scroller.zoomedMinOld = scroller.zoomedMin;
+            scroller.zoomedMaxOld = scroller.zoomedMax;
+        }
+        return data;
+    });
+
+   /* Highcharts.wrap(Highcharts.Axis.prototype, 'getLinearTickPositions', function (proceed, tickInterval, min, max) {
+        var axis = this;
+        var chart = axis.chart;
+        var _min = chart.yAxis[0].dataMin;
+        var _max = chart.yAxis[0].dataMax;
+        for (var i = 0; i < chart.yAxis.length; i++) {
+            _min = Math.min(_min, chart.yAxis[i].dataMin);
+            _max = Math.max(_max, chart.yAxis[i].dataMax);
+        }
+        tickPosition(chart);
+     //   var data = proceed.call(axis, tickInterval, min, max);
+        var data = tickPositioner1.positioner(true)(_min, _max);
+        return data;
+    });*/
+
+
 }(Highcharts));
